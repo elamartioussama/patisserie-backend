@@ -19,18 +19,23 @@ class UserController extends Controller
     // ➕ Créer un nouvel utilisateur
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6',
-            'role'     => 'required|in:client,admin,livreur,assembleur',
-            'tel'      => 'nullable|string',
-            'address'  => 'nullable|string',
+         $request->validate([
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|string|confirmed',
+            'role' => 'required|string', // 'client', 'admin', etc.
+            'tel' => 'nullable|string',
+            'address' => 'nullable|string',
+        ]);
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => $request->role,
+            'tel' => $request->tel,
+            'address' => $request->address,
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
-
-        $user = User::create($validated);
 
         return response()->json($user, 201);
     }
@@ -109,16 +114,40 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Rôle mis à jour', 'user' => $user], 200);
     }
+    // public function search(Request $request)
+    // {
+    //     $query = $request->input('query');
+
+    //     $users = User::where('name', 'like', "%$query%")
+    //                 ->orWhere('email', 'like', "%$query%")
+    //                 ->get();
+
+    //     return response()->json($users, 200);
+    // }
     public function search(Request $request)
     {
-        $query = $request->input('query');
+        $name = $request->input('name');
+        $role = $request->input('role');
 
-        $users = User::where('name', 'like', "%$query%")
-                    ->orWhere('email', 'like', "%$query%")
-                    ->get();
+        $query = User::query();
 
-        return response()->json($users, 200);
+        if ($name) {
+             $query->where(function ($q) use ($name) {
+            $q->where('name', 'like', "%$name%")
+            ->orWhere('email', 'like', "%$name%");
+    });
+            
+        }
+
+        if ($role) {
+            $query->where('role', 'like', "%$role%");
+        }
+
+        $results = $query->get();
+
+        return response()->json($results, 200);
     }
+
     public function getAllUsers(){
         $users = User::all();
         return response()->json($users, 200);
@@ -247,4 +276,24 @@ public function login(Request $request)
     }
 
     // Autres méthodes...
+    public function updatePassword(Request $request, $id)
+{
+    $user = User::find($id);
+    if (!$user) return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+
+    $request->validate([
+        'old_password' => 'required',
+        'new_password' => 'required|confirmed|min:6',
+    ]);
+
+    if (!Hash::check($request->old_password, $user->password)) {
+        return response()->json(['message' => 'Ancien mot de passe incorrect'], 403);
+    }
+
+    $user->password = Hash::make($request->new_password);
+    $user->save();
+
+    return response()->json(['message' => 'Mot de passe mis à jour avec succès']);
+}
+
 }

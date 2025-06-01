@@ -15,21 +15,72 @@ class ProductController extends Controller
     }
 
     // ➕ Créer un produit
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price'       => 'required|numeric|min:0',
-            'stock'       => 'required|integer|min:0',
-            'image'       => 'nullable|string',
-            'category'    => 'nullable|string|max:100', // ✅ Ajout catégorie
-        ]);
+    // public function store(Request $request)
+    // {
+    //     $validated = $request->validate([
+    //         // 'name'        => 'required|string|max:255',
+    //         // 'description' => 'nullable|string',
+    //         // 'price'       => 'required|numeric|min:0',
+    //         // 'stock'       => 'required|integer|min:0',
+    //         // 'image'       => 'nullable|string',
+    //         // 'category'    => 'nullable|string|max:100', // ✅ Ajout catégorie
+    //     ]);
     
-        $product = Product::create($validated);
+    //     $product = Product::create($validated);
     
-        return response()->json($product, 201);
+    //     return response()->json($product, 201);
+    // }
+//     public function store(Request $request)
+// {
+//     $product = new Product();
+    // $product->name = $request->input('name'); // <- Ce champ est null !
+    // $product->price = $request->input('price');
+    // $product->description = $request->input('description');
+    
+    // $product->stock = $request->input("stock");
+    // $product->category = $request->input('category');
+    // $product->image = $request->input('image');
+//     $product->save();
+
+//     return response()->json(['message' => 'Produit ajouté avec succès'], 201);
+// }
+public function store(Request $request)
+{
+    // Validation, y compris le fichier image
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'price' => 'required|numeric',
+        'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        // autres règles...
+    ]);
+
+    $product = new Product();
+    $product->name = $request->input('name'); // <- Ce champ est null !
+    $product->price = $request->input('price');
+    $product->description = $request->input('description');
+    
+    $product->stock = $request->input("stock");
+    $product->category = $request->input('category');
+    $product->image = $request->input('image');
+    // autres champs...
+
+    // Gestion de l'image uploadée
+    if ($request->hasFile('image')) {
+        $file = $request->file('image');
+        // Générer un nom unique
+        $filename = time().'_'.$file->getClientOriginalName();
+        // Déplacer le fichier dans public/storage/images (par exemple)
+        $file->move(public_path('storage/images'), $filename);
+        // Enregistrer le chemin ou le nom dans la base
+        $product->image = 'storage/images/' . $filename;
     }
+
+    $product->save();
+
+    return response()->json(['message' => 'Produit créé avec succès', 'product' => $product], 201);
+}
+
+
     
 
     // 👁️ Afficher un produit spécifique
@@ -53,9 +104,15 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'price'       => 'sometimes|numeric|min:0',
             'stock'       => 'sometimes|integer|min:0',
-            'image'       => 'nullable|string',
             'category'    => 'nullable|string|max:100', // ✅ Ajout catégorie
+            
         ]);
+       if ($request->hasFile('image')) {
+    $file = $request->file('image');
+    $filename = time().'_'.$file->getClientOriginalName();
+    $file->move(public_path('storage/images'), $filename);
+    $product->image = 'storage/images/' . $filename;
+}
     
         $product->update($validated);
     

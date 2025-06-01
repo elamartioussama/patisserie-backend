@@ -1,114 +1,74 @@
 <?php
 namespace App\Http\Controllers\API;
-
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Complaint;
+use Illuminate\Support\Facades\DB;
 use App\Models\Order;
+use Carbon\Carbon;
+use App\Models\User;
+use App\Models\Product;
 
 class ComplaintController extends Controller
 {
-    // 📄 Lister toutes les réclamations
-    public function index()
+    public function general()
     {
-        return response()->json(Complaint::with('order')->get(), 200);
+        $usersCount = User::count();
+    $productsCount = Product::count();
+    $ordersCount = Order::count();
+    $ordersPending = Order::where('status', 'en attente')->count();
+    $ordersReady = Order::where('status', 'prête')->count();
+
+    $revenueToday = Order::whereDate('created_at', now()->toDateString())->sum('total');
+    $revenueWeek = Order::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->sum('total');
+    $revenueMonth = Order::whereMonth('created_at', now()->month)->sum('total');
+
+    // Revenu par jour de la semaine
+    $revenuePerDay = [];
+    for ($i = 0; $i < 7; $i++) {
+        $day = now()->startOfWeek()->addDays($i);
+        $revenuePerDay[] = [
+            'day' => $day->translatedFormat('D'), // Lun, Mar...
+            'revenue' => Order::whereDate('created_at', $day->toDateString())->sum('total'),
+        ];
     }
 
-    // ➕ Soumettre une réclamation
-    public function store(Request $request)
+    // Nombre commandes par statut
+    $ordersStatus = Order::select('status', \DB::raw('count(*) as count'))
+        ->groupBy('status')->get();
+
+    return response()->json([
+        'users' => $usersCount,
+        'products' => $productsCount,
+        'orders' => $ordersCount,
+        'orders_pending' => $ordersPending,
+        'orders_ready' => $ordersReady,
+        'revenue_today' => $revenueToday,
+        'revenue_week' => $revenueWeek,
+        'revenue_month' => $revenueMonth,
+        'revenue_per_day' => $revenuePerDay,
+        'orders_status' => $ordersStatus,
+    ]);
+    }
+    public function stats()
     {
-        $request->validate([
-            'order_id'   => 'required|exists:orders,id',
-            'client_id'  => 'required|exists:users,id',
-            'message'    => 'required|string|max:500',
+        $usersCount = User::count();
+        $productsCount = Product::count();
+        $ordersCount = Order::count();
+        $ordersPending = Order::where('status', 'en_attente')->count();
+        $ordersReady = Order::where('status', 'prête')->count();
+
+        $todayRevenue = Order::whereDate('created_at', Carbon::today())->sum('total_price');
+        $weekRevenue = Order::whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])->sum('total_price');
+        $monthRevenue = Order::whereMonth('created_at', Carbon::now()->month)->sum('total_price');
+
+        return response()->json([
+            'users' => $usersCount,
+            'products' => $productsCount,
+            'orders' => $ordersCount,
+            'orders_pending' => $ordersPending,
+            'orders_ready' => $ordersReady,
+            'revenue_today' => $todayRevenue,
+            'revenue_week' => $weekRevenue,
+            'revenue_month' => $monthRevenue,
         ]);
-
-        $reclamation = Complaint::create([
-            'order_id'   => $request->order_id,
-            'client_id'  => $request->client_id,
-            'message'    => $request->message,
-            'status'     => 'en attente',
-        ]);
-
-        return response()->json($reclamation, 201);
     }
-
-    // 👁️ Voir une réclamation spécifique
-    public function show($id)
-    {
-        $reclamation = Complaint::with('order')->find($id);
-        if (!$reclamation) {
-            return response()->json(['message' => 'Réclamation non trouvée'], 404);
-        }
-
-        return response()->json($reclamation, 200);
-    }
-
-    // ✏️ Modifier le statut d’une réclamation
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'status' => 'required|string|in:en attente,traitée,fermée',
-        ]);
-
-        $reclamation = Complaint::find($id);
-        if (!$reclamation) {
-            return response()->json(['message' => 'Réclamation non trouvée'], 404);
-        }
-
-        $reclamation->status = $request->status;
-        $reclamation->save();
-
-        return response()->json($reclamation, 200);
-    }
-
-    // ❌ Supprimer une réclamation
-    public function destroy($id)
-    {
-        $reclamation = Complaint::find($id);
-        if (!$reclamation) {
-            return response()->json(['message' => 'Réclamation non trouvée'], 404);
-        }
-
-        $reclamation->delete();
-
-        return response()->json(['message' => 'Réclamation supprimée'], 200);
-    }
-
-    // 📄 Lister les réclamations d’un client
-    public function getByClient($clientId)
-    {
-        $reclamations = Complaint::where('client_id', $clientId)->get();
-        return response()->json($reclamations, 200);
-    }
-    public function getByDate(Request $request)
-    {
-        $request->validate([
-            'date' => 'required|date',
-        ]);
-
-        $date = $request->date;
-
-        $reclamations = Complaint::with(['order', 'client'])
-            ->whereDate('created_at', $date)
-            ->get();
-
-        return response()->json($reclamations, 200);
-    }
-    public function getByStatus($status)
-    {
-        $allowedStatuses = ['en attente', 'traitée', 'fermée'];
-
-        if (!in_array($status, $allowedStatuses)) {
-            return response()->json(['message' => 'Statut invalide'], 400);
-        }
-
-        $reclamations = Complaint::with(['order', 'client'])
-            ->where('status', $status)
-            ->get();
-
-        return response()->json($reclamations, 200);
-    }
-
-
 }

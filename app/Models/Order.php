@@ -37,4 +37,12 @@ class Order extends Model
     {
         return $this->hasMany(Delivery::class, 'delivery_person_id');
     }
+public function products()
+{
+    return $this->belongsToMany(Product::class, 'order_items') // Spécifie ici la bonne table pivot
+                ->withPivot('quantity') // Pour accéder à $product->pivot->quantity
+                ->withTimestamps();
+}
+
+
 }
